@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>New England Blizzard Atlas</title>
+<meta name="description" content="Ten years of verified blizzard conditions (ASOS/AWOS/METAR) and NWS Blizzard Warnings across New England, with gridded frequency maps and a searchable archive.">
+<link rel="stylesheet" href="vendor/maplibre-gl.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><g stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"><path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7"/><path d="M9.5 3.8L12 6l2.5-2.2M9.5 20.2L12 18l2.5 2.2"/></g></svg>
+    <span>New England Blizzard Atlas</span>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button role="tab" data-view="map" aria-selected="true">Map</button>
+    <button role="tab" data-view="dash" aria-selected="false">Dashboard</button>
+    <button role="tab" data-view="explore" aria-selected="false">Explorer</button>
+    <button role="tab" data-view="about" aria-selected="false">About</button>
+  </nav>
+  <div class="range" id="globalRange" title="Winter-season filter applied to the map and dashboard">
+    <label>Winters
+      <select id="seasonFrom"></select>
+    </label>
+    <span>to</span>
+    <select id="seasonTo" aria-label="Last season"></select>
+  </div>
+</header>
+
+<main>
+<!-- ============================ MAP ============================ -->
+<section id="view-map" class="view active">
+  <div id="map" aria-label="Map of New England blizzard warnings and verified blizzard conditions"></div>
+  <button id="panelToggle" class="fab" aria-expanded="true" aria-controls="panel">Layers</button>
+  <aside id="panel" class="panel">
+    <div class="field">
+      <label for="gridSel">Gridded product</label>
+      <select id="gridSel"></select>
+      <div class="hint" id="gridNote"></div>
+    </div>
+    <div class="field row">
+      <label for="gridOpacity">Opacity</label>
+      <input id="gridOpacity" type="range" min="10" max="100" value="80">
+    </div>
+    <div class="legend" id="legend" aria-live="polite"></div>
+    <hr>
+    <div class="field checks">
+      <label><input type="checkbox" id="lyStations" checked> Verified blizzard conditions <span class="muted">(station dots)</span></label>
+      <label><input type="checkbox" id="lyAllStations"> Stations with no verified event</label>
+      <label><input type="checkbox" id="lyZones"> Blizzard Warning zones <span class="muted">(count)</span></label>
+      <label><input type="checkbox" id="lyCounties"> County lines</label>
+    </div>
+    <div class="field">
+      <label for="baseSel">Basemap</label>
+      <select id="baseSel">
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+        <option value="osm">OpenStreetMap</option>
+        <option value="none">Outlines only (offline)</option>
+      </select>
+    </div>
+    <div class="hint">Hover the grid (tap on phones) for values at that point. Click a station or a warning zone for its history.</div>
+  </aside>
+  <div id="gridTip" class="tip" hidden></div>
+</section>
+
+<!-- ============================ DASHBOARD ============================ -->
+<section id="view-dash" class="view">
+  <div class="page">
+    <div class="filters">
+      <label>State <select id="dState"><option value="">All New England</option></select></label>
+      <label>Station type <select id="dType"><option value="">ASOS + AWOS</option><option>ASOS</option><option>AWOS</option></select></label>
+      <span class="muted" id="dScope"></span>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div class="grid2">
+      <figure class="card"><figcaption>Verified blizzard station-events per winter <small>(≥3 consecutive hours of blizzard conditions at a station)</small></figcaption><div id="chSeason"></div></figure>
+      <figure class="card"><figcaption>Blizzard Warnings issued per winter <small>(NWS BZ.W events)</small></figcaption><div id="chWarn"></div></figure>
+      <figure class="card"><figcaption>When blizzard conditions happen <small>(station-events by month)</small></figcaption><div id="chMonth"></div></figure>
+      <figure class="card"><figcaption>Most frequent locations <small>(station-events in selected winters)</small></figcaption><div id="chStation"></div></figure>
+    </div>
+    <figure class="card wide"><figcaption>Blizzard Warnings and what stations observed <small>(stations inside the warned zones that verified blizzard conditions within ±3 h of the warning)</small></figcaption>
+      <div class="tablewrap"><table id="warnTable"></table></div></figure>
+  </div>
+</section>
+
+<!-- ============================ EXPLORER ============================ -->
+<section id="view-explore" class="view">
+  <div class="page">
+    <div class="subtabs" role="tablist">
+      <button data-sub="events" aria-selected="true">Verified events</button>
+      <button data-sub="sql" aria-selected="false">SQL</button>
+      <button data-sub="archive" aria-selected="false">Archive search (live)</button>
+    </div>
+
+    <div id="sub-events" class="sub active">
+      <div class="filters">
+        <input id="evSearch" type="search" placeholder="Search station, name, county, date (e.g. BOS, 2018-01-04, Portland)" aria-label="Search events">
+        <label>State <select id="evState"><option value="">All</option></select></label>
+        <label>Type <select id="evType"><option value="">All</option><option>ASOS</option><option>AWOS</option></select></label>
+        <label>Min hours <input id="evHours" type="number" min="3" max="24" value="3"></label>
+        <label>Min peak wind (mph) <input id="evWind" type="number" min="35" max="120" value="35"></label>
+        <label>Warning <select id="evWarned"><option value="">Any</option><option value="1">Under Blizzard Warning</option><option value="0">No warning</option></select></label>
+      </div>
+      <div class="muted" id="evCount"></div>
+      <div class="tablewrap"><table id="evTable"></table></div>
+      <div class="pager"><button id="evPrev">‹ Prev</button><span id="evPage"></span><button id="evNext">Next ›</button><button id="evCsv" class="ghost">Download CSV</button></div>
+      <div id="evDetail" class="card detail" hidden></div>
+    </div>
+
+    <div id="sub-sql" class="sub">
+      <p class="muted">Query the full database in your browser (SQLite via WebAssembly). Tables: <code>stations</code>, <code>station_seasons</code>, <code>events</code>, <code>event_obs</code> (raw METARs), <code>warnings</code>, and view <code>v_events</code>.</p>
+      <div class="filters"><label>Examples <select id="sqlExamples"></select></label><button id="sqlRun" class="primary">Run ▸ <small>Ctrl/⌘+Enter</small></button><button id="sqlCsv" class="ghost">Download CSV</button></div>
+      <textarea id="sqlText" spellcheck="false" rows="6"></textarea>
+      <div class="muted" id="sqlStatus"></div>
+      <div class="tablewrap"><table id="sqlTable"></table></div>
+    </div>
+
+    <div id="sub-archive" class="sub">
+      <p class="muted">Search <em>any</em> past observation (not only blizzards) straight from the Iowa Environmental Mesonet archive of METAR/SPECI reports for ASOS and AWOS stations in New England. Requests go from your browser to IEM.</p>
+      <form id="arForm" class="filters">
+        <label>Station <select id="arStation"></select></label>
+        <label>From <input type="date" id="arFrom" required></label>
+        <label>To <input type="date" id="arTo" required></label>
+        <label>Wind ≥ (mph) <input type="number" id="arWind" min="0" placeholder="any"></label>
+        <label>Visibility ≤ (mi) <input type="number" id="arVis" min="0" step="0.25" placeholder="any"></label>
+        <label>Weather <input type="text" id="arWx" placeholder="SN, BLSN, FZRA…" size="12"></label>
+        <label>Text in METAR <input type="text" id="arText" placeholder="e.g. PK WND or /\bBLSN\b/" size="18"></label>
+        <button class="primary" type="submit">Search</button>
+      </form>
+      <div class="muted" id="arStatus"></div>
+      <div class="tablewrap"><table id="arTable"></table></div>
+      <div class="pager"><button id="arPrev">‹ Prev</button><span id="arPage"></span><button id="arNext">Next ›</button><button id="arCsv" class="ghost">Download CSV</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ ABOUT ============================ -->
+<section id="view-about" class="view">
+  <div class="page prose" id="aboutBody"></div>
+</section>
+</main>
+
+<script src="vendor/maplibre-gl.js"></script>
+<script src="vendor/sql-wasm.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
